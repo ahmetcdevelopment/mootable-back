@@ -33,6 +33,8 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<UserRole> UserRoles => Set<UserRole>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<ExternalLogin> ExternalLogins => Set<ExternalLogin>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<Server> Servers => Set<Server>();
     public DbSet<ServerMember> ServerMembers => Set<ServerMember>();
     public DbSet<ServerRole> ServerRoles => Set<ServerRole>();

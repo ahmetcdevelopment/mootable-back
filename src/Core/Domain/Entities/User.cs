@@ -21,6 +21,7 @@ public sealed class User : BaseEntity, IAuditableEntity
     public ICollection<Message> Messages { get; set; } = new List<Message>();
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+    public ICollection<ExternalLogin> ExternalLogins { get; set; } = new List<ExternalLogin>();
 }
 
 public enum UserStatus

@@ -10,18 +10,18 @@ namespace Mootable.Application.Features.Auth.Commands.Register;
 
 public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, RegisterResponse>
 {
-    private readonly IApplicationDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ITokenService _tokenService;
     private readonly AuthBusinessRules _businessRules;
 
     public RegisterCommandHandler(
-        IApplicationDbContext context,
+        IUnitOfWork unitOfWork,
         IPasswordHasher passwordHasher,
         ITokenService tokenService,
         AuthBusinessRules businessRules)
     {
-        _context = context;
+        _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
         _tokenService = tokenService;
         _businessRules = businessRules;
@@ -29,15 +29,18 @@ public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, Re
 
     public async Task<RegisterResponse> Handle(RegisterCommand request, CancellationToken cancellationToken)
     {
-        var emailExists = await _context.Users
-            .AnyAsync(u => u.Email == request.Email && !u.IsDeleted, cancellationToken);
+        // Check if email exists using repository pattern
+        var emailExists = await _unitOfWork.Users
+            .ExistsAsync(u => u.Email == request.Email, cancellationToken);
         _businessRules.EmailMustBeUnique(emailExists);
 
-        var usernameExists = await _context.Users
-            .AnyAsync(u => u.Username == request.Username && !u.IsDeleted, cancellationToken);
+        // Check if username exists using repository pattern
+        var usernameExists = await _unitOfWork.Users
+            .ExistsAsync(u => u.Username == request.Username, cancellationToken);
         _businessRules.UsernameMustBeUnique(usernameExists);
 
-        var userRole = await _context.Roles
+        // Get user role
+        var userRole = await _unitOfWork.Roles
             .FirstOrDefaultAsync(r => r.Name == AuthRoles.User, cancellationToken);
 
         var user = new User
@@ -70,8 +73,9 @@ public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, Re
 
         user.AddDomainEvent(new UserRegisteredEvent(user.Id, user.Username, user.Email));
 
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync(cancellationToken);
+        // Use repository to add user
+        await _unitOfWork.Users.AddAsync(user, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var roles = userRole != null ? new[] { userRole.Name } : Array.Empty<string>();
         var accessToken = _tokenService.GenerateAccessToken(user, roles);

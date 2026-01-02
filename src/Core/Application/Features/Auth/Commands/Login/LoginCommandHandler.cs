@@ -9,7 +9,7 @@ namespace Mootable.Application.Features.Auth.Commands.Login;
 
 /// <summary>
 /// Login işleminin handler'ı.
-/// 
+///
 /// SECURITY CONSIDERATIONS:
 /// 1. Timing attack koruması: Email var/yok fark etmeksizin aynı hata mesajı
 /// 2. Brute force koruması: Business rules'da rate limiting kontrolü
@@ -17,18 +17,18 @@ namespace Mootable.Application.Features.Auth.Commands.Login;
 /// </summary>
 public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginResponse>
 {
-    private readonly IApplicationDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ITokenService _tokenService;
     private readonly AuthBusinessRules _businessRules;
 
     public LoginCommandHandler(
-        IApplicationDbContext context,
+        IUnitOfWork unitOfWork,
         IPasswordHasher passwordHasher,
         ITokenService tokenService,
         AuthBusinessRules businessRules)
     {
-        _context = context;
+        _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
         _tokenService = tokenService;
         _businessRules = businessRules;
@@ -36,10 +36,13 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginRes
 
     public async Task<LoginResponse> Handle(LoginCommand request, CancellationToken cancellationToken)
     {
-        var user = await _context.Users
+        // Using repository pattern with includes
+        var user = await _unitOfWork.Users
+            .GetQueryableWithIncludes(
+                u => u.UserRoles,
+                u => u.RefreshTokens)
             .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
-            .Include(u => u.RefreshTokens)
             .FirstOrDefaultAsync(u => u.Email == request.Email && !u.IsDeleted, cancellationToken);
 
         _businessRules.UserMustExistForLogin(user);
@@ -52,8 +55,9 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginRes
         user.RefreshTokens.Add(refreshToken);
         user.Status = UserStatus.Online;
         user.LastSeenAt = DateTime.UtcNow;
-        
-        await _context.SaveChangesAsync(cancellationToken);
+
+        _unitOfWork.Users.Update(user);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return new LoginResponse(
             UserId: user.Id,
