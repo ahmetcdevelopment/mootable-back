@@ -42,9 +42,14 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<MootTable> MootTables => Set<MootTable>();
     public DbSet<MootTableCategory> MootTableCategories => Set<MootTableCategory>();
     public DbSet<RabbitHole> RabbitHoles => Set<RabbitHole>();
+    public DbSet<RabbitHolePost> RabbitHolePosts => Set<RabbitHolePost>();
+    public DbSet<RabbitHoleFollower> RabbitHoleFollowers => Set<RabbitHoleFollower>();
+    public DbSet<RabbitHolePostReaction> RabbitHolePostReactions => Set<RabbitHolePostReaction>();
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<MessageAttachment> MessageAttachments => Set<MessageAttachment>();
     public DbSet<MessageReaction> MessageReactions => Set<MessageReaction>();
+    public DbSet<Post> Posts => Set<Post>();
+    public DbSet<PostLike> PostLikes => Set<PostLike>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

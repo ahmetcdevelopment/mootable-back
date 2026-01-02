@@ -22,6 +22,8 @@ public interface IUnitOfWork : IDisposable
     IRepository<MessageReaction> MessageReactions { get; }
     IRepository<MessageAttachment> MessageAttachments { get; }
     IRepository<MootTableCategory> MootTableCategories { get; }
+    IRepository<Post> Posts { get; }
+    IRepository<PostLike> PostLikes { get; }
 
     // Transaction management
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

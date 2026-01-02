@@ -1,77 +1,82 @@
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Mootable.Application.Features.RabbitHoles.Commands.CreateRabbitHole;
+using Mootable.Application.Features.RabbitHoles.Commands;
+using Mootable.Application.Features.RabbitHoles.Queries;
+using System;
+using System.Threading.Tasks;
 
-namespace Mootable.WebAPI.Controllers;
-
-[Authorize]
-public class RabbitHolesController : BaseApiController
+namespace Mootable.WebAPI.Controllers
 {
-    [HttpPost]
-    [ProducesResponseType(typeof(CreateRabbitHoleResponse), StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> CreateRabbitHole([FromBody] CreateRabbitHoleRequest request)
+    /// <summary>
+    /// Rabbit Hole Controller - Topic-specific discussion channels
+    /// Matrix theme: "Follow the white rabbit into topics"
+    /// </summary>
+    [Authorize]
+    [ApiController]
+    [Route("api/[controller]")]
+    public class RabbitHolesController : ControllerBase
     {
-        var command = new CreateRabbitHoleCommand(
-            request.MootTableId,
-            request.StarterMessageId,
-            request.Title
-        );
-        var result = await Mediator.Send(command);
-        return CreatedAtAction(nameof(GetRabbitHole), new { rabbitHoleId = result.RabbitHoleId }, result);
-    }
+        private readonly IMediator _mediator;
 
-    [HttpGet("{rabbitHoleId:guid}")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetRabbitHole(Guid rabbitHoleId)
-    {
-        return Ok(new { rabbitHoleId });
-    }
+        public RabbitHolesController(IMediator mediator)
+        {
+            _mediator = mediator;
+        }
 
-    [HttpGet("moot-table/{mootTableId:guid}")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetMootTableRabbitHoles(Guid mootTableId)
-    {
-        return Ok(Array.Empty<object>());
-    }
+        /// <summary>
+        /// Get all public rabbit holes
+        /// </summary>
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetRabbitHoles([FromQuery] GetRabbitHolesQuery query)
+        {
+            var result = await _mediator.Send(query);
+            return Ok(result);
+        }
 
-    [HttpGet("{rabbitHoleId:guid}/messages")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetMessages(
-        Guid rabbitHoleId,
-        [FromQuery] int limit = 50,
-        [FromQuery] Guid? before = null)
-    {
-        return Ok(Array.Empty<object>());
-    }
+        /// <summary>
+        /// Create a new rabbit hole
+        /// </summary>
+        [HttpPost]
+        public async Task<IActionResult> CreateRabbitHole([FromBody] CreateRabbitHoleCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return Created($"/api/rabbit-holes/{result.Slug}", result);
+        }
 
-    [HttpPost("{rabbitHoleId:guid}/messages")]
-    [ProducesResponseType(StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> SendMessage(Guid rabbitHoleId, [FromBody] SendRabbitHoleMessageRequest request)
-    {
-        return CreatedAtAction(nameof(GetMessages), new { rabbitHoleId }, new { });
-    }
+        /// <summary>
+        /// Follow or unfollow a rabbit hole
+        /// </summary>
+        [HttpPost("{rabbitHoleId}/follow")]
+        public async Task<IActionResult> FollowRabbitHole(Guid rabbitHoleId, [FromBody] FollowRabbitHoleCommand command)
+        {
+            command.RabbitHoleId = rabbitHoleId;
+            var result = await _mediator.Send(command);
+            return Ok(result);
+        }
 
-    [HttpPatch("{rabbitHoleId:guid}/resolve")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> ResolveRabbitHole(Guid rabbitHoleId)
-    {
-        return NoContent();
-    }
+        /// <summary>
+        /// Get posts from a rabbit hole
+        /// </summary>
+        [HttpGet("{rabbitHoleId}/posts")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetRabbitHolePosts(Guid rabbitHoleId, [FromQuery] GetRabbitHolePostsQuery query)
+        {
+            query.RabbitHoleId = rabbitHoleId;
+            var result = await _mediator.Send(query);
+            return Ok(result);
+        }
 
-    [HttpPatch("{rabbitHoleId:guid}/lock")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> LockRabbitHole(Guid rabbitHoleId)
-    {
-        return NoContent();
+        /// <summary>
+        /// Create a post in a rabbit hole
+        /// </summary>
+        [HttpPost("{rabbitHoleId}/posts")]
+        public async Task<IActionResult> CreatePost(Guid rabbitHoleId, [FromBody] CreateRabbitHolePostCommand command)
+        {
+            command.RabbitHoleId = rabbitHoleId;
+            var result = await _mediator.Send(command);
+            return Created($"/api/rabbit-holes/{rabbitHoleId}/posts/{result.Id}", result);
+        }
     }
 }
-
-public sealed record CreateRabbitHoleRequest(Guid MootTableId, Guid StarterMessageId, string Title);
-public sealed record SendRabbitHoleMessageRequest(string Content, Guid? ReplyToId);

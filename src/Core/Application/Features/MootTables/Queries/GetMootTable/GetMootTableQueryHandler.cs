@@ -43,8 +43,9 @@ public sealed class GetMootTableQueryHandler : IRequestHandler<GetMootTableQuery
         var messageCount = await _context.Messages
             .CountAsync(m => m.MootTableId == request.MootTableId && !m.IsDeleted, cancellationToken);
 
-        var rabbitHoleCount = await _context.RabbitHoles
-            .CountAsync(rh => rh.MootTableId == request.MootTableId && !rh.IsDeleted, cancellationToken);
+        // Rabbit holes are topic-specific, not tied to MootTables
+        var rabbitHoleCount = 0; // await _context.RabbitHoles
+            
 
         return new GetMootTableResponse(
             Id: mootTable!.Id,

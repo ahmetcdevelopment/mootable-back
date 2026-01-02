@@ -87,6 +87,7 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+app.MapHub<MatrixHub>("/hubs/matrix");
 app.MapHub<MootTableHub>("/hubs/moot-table");
 app.MapHub<RabbitHoleHub>("/hubs/rabbit-hole");
 app.MapHub<PresenceHub>("/hubs/presence");

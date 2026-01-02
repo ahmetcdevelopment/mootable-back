@@ -31,6 +31,8 @@ public class UnitOfWork : IUnitOfWork
     private IRepository<MessageReaction>? _messageReactions;
     private IRepository<MessageAttachment>? _messageAttachments;
     private IRepository<MootTableCategory>? _mootTableCategories;
+    private IRepository<Post>? _posts;
+    private IRepository<PostLike>? _postLikes;
 
     // Dictionary to store generic repositories
     private readonly Dictionary<Type, object> _repositories = new();
@@ -55,6 +57,8 @@ public class UnitOfWork : IUnitOfWork
     public IRepository<MessageReaction> MessageReactions => _messageReactions ??= new Repository<MessageReaction>(_context);
     public IRepository<MessageAttachment> MessageAttachments => _messageAttachments ??= new Repository<MessageAttachment>(_context);
     public IRepository<MootTableCategory> MootTableCategories => _mootTableCategories ??= new Repository<MootTableCategory>(_context);
+    public IRepository<Post> Posts => _posts ??= new Repository<Post>(_context);
+    public IRepository<PostLike> PostLikes => _postLikes ??= new Repository<PostLike>(_context);
 
     public bool HasActiveTransaction => _currentTransaction != null;
 
