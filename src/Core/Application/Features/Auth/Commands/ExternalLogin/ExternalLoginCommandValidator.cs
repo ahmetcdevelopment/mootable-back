@@ -38,7 +38,7 @@ public sealed class ExternalLoginCommandValidator : AbstractValidator<ExternalLo
     private bool BeValidProvider(string provider)
     {
         var validProviders = new[] { "Google", "Microsoft", "GitHub", "Discord" };
-        return validProviders.Contains(provider);
+        return validProviders.Contains(provider, StringComparer.OrdinalIgnoreCase);
     }
 
     private bool BeValidUrl(string? url)

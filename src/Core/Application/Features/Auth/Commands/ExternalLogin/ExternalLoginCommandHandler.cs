@@ -59,6 +59,11 @@ public sealed class ExternalLoginCommandHandler : IRequestHandler<ExternalLoginC
             externalLogin.UpdatedAt = DateTime.UtcNow;
 
             _unitOfWork.Repository<Domain.Entities.ExternalLogin>().Update(externalLogin);
+            
+            // Update user status
+            user.Status = UserStatus.Online;
+            user.LastSeenAt = DateTime.UtcNow;
+            _unitOfWork.Users.Update(user);
         }
         else
         {
@@ -85,7 +90,7 @@ public sealed class ExternalLoginCommandHandler : IRequestHandler<ExternalLoginC
                     Id = Guid.NewGuid(),
                     Username = username,
                     Email = request.Email,
-                    PasswordHash = GenerateRandomPassword(), // User can't login with password, only OAuth2
+                    PasswordHash = GenerateRandomPassword(),
                     DisplayName = request.DisplayName ?? username,
                     AvatarUrl = request.PhotoUrl,
                     Status = UserStatus.Online,
@@ -95,24 +100,40 @@ public sealed class ExternalLoginCommandHandler : IRequestHandler<ExternalLoginC
 
                 user.CreatedBy = user.Id;
 
+                await _unitOfWork.Users.AddAsync(user, cancellationToken);
+                
+                // IMPORTANT: Save user first before adding related entities
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+                // Now add UserRole after user is saved
                 if (userRole != null)
                 {
-                    user.UserRoles.Add(new UserRole
+                    var newUserRole = new UserRole
                     {
                         Id = Guid.NewGuid(),
                         UserId = user.Id,
                         RoleId = userRole.Id,
                         CreatedAt = DateTime.UtcNow
-                    });
+                    };
+                    await _unitOfWork.Repository<UserRole>().AddAsync(newUserRole, cancellationToken);
                 }
-
-                await _unitOfWork.Users.AddAsync(user, cancellationToken);
 
                 // Add domain event for new user
                 user.AddDomainEvent(new UserRegisteredEvent(user.Id, user.Username, user.Email));
             }
+            else
+            {
+                // Existing user - update status
+                user.Status = UserStatus.Online;
+                user.LastSeenAt = DateTime.UtcNow;
+                if (string.IsNullOrEmpty(user.AvatarUrl) && !string.IsNullOrEmpty(request.PhotoUrl))
+                {
+                    user.AvatarUrl = request.PhotoUrl;
+                }
+                _unitOfWork.Users.Update(user);
+            }
 
-            // Create external login entry
+            // Create external login entry (user now exists in DB)
             var newExternalLogin = new Domain.Entities.ExternalLogin
             {
                 Id = Guid.NewGuid(),
@@ -131,24 +152,14 @@ public sealed class ExternalLoginCommandHandler : IRequestHandler<ExternalLoginC
             await _unitOfWork.Repository<Domain.Entities.ExternalLogin>().AddAsync(newExternalLogin, cancellationToken);
         }
 
-        // Update user status and last seen
-        user!.Status = UserStatus.Online;
-        user.LastSeenAt = DateTime.UtcNow;
-
-        // Update avatar from provider if not set
-        if (string.IsNullOrEmpty(user.AvatarUrl) && !string.IsNullOrEmpty(request.PhotoUrl))
-        {
-            user.AvatarUrl = request.PhotoUrl;
-        }
-
-        _unitOfWork.Users.Update(user);
-
         // Generate tokens
-        var roles = user.UserRoles.Select(ur => ur.Role.Name).ToList();
+        var roles = user.UserRoles?.Select(ur => ur.Role?.Name ?? "User").ToList() ?? new List<string> { "User" };
         var accessToken = _tokenService.GenerateAccessToken(user, roles);
         var refreshToken = _tokenService.GenerateRefreshToken(request.IpAddress);
 
-        user.RefreshTokens.Add(refreshToken);
+        // Set the UserId on refresh token and add directly to repository
+        refreshToken.UserId = user.Id;
+        await _unitOfWork.Repository<Domain.Entities.RefreshToken>().AddAsync(refreshToken, cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 

@@ -83,35 +83,51 @@ public static class DependencyInjection
             };
         });
 
-        // Add OAuth2 providers
-        var authBuilder = services.AddAuthentication();
-
+        // Add OAuth2 providers with Cookie as SignIn scheme
         var googleClientId = configuration["OAuth2:Google:ClientId"];
         var googleClientSecret = configuration["OAuth2:Google:ClientSecret"];
         if (!string.IsNullOrEmpty(googleClientId) && googleClientId != "YOUR_GOOGLE_CLIENT_ID")
         {
-            authBuilder.AddGoogle(GoogleDefaults.AuthenticationScheme, options =>
-            {
-                options.ClientId = googleClientId;
-                options.ClientSecret = googleClientSecret!;
-                options.CallbackPath = "/api/oauth2/callback/google";
-                options.SaveTokens = true;
-                options.Scope.Add("email");
-                options.Scope.Add("profile");
-            });
+            services.AddAuthentication()
+                .AddGoogle(GoogleDefaults.AuthenticationScheme, options =>
+                {
+                    options.ClientId = googleClientId;
+                    options.ClientSecret = googleClientSecret!;
+                    options.CallbackPath = "/signin-google";
+                    options.SaveTokens = true;
+                    options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+                    options.Scope.Add("email");
+                    options.Scope.Add("profile");
+                    
+                    // Force the correct redirect URI
+                    options.Events.OnRedirectToAuthorizationEndpoint = context =>
+                    {
+                        // Replace any incorrect redirect_uri with the correct one
+                        var redirectUri = "http://localhost:5000/signin-google";
+                        var uri = new Uri(context.RedirectUri);
+                        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+                        query["redirect_uri"] = redirectUri;
+                        
+                        var newUri = $"{uri.GetLeftPart(UriPartial.Path)}?{query}";
+                        context.Response.Redirect(newUri);
+                        return Task.CompletedTask;
+                    };
+                });
         }
 
         var microsoftClientId = configuration["OAuth2:Microsoft:ClientId"];
         var microsoftClientSecret = configuration["OAuth2:Microsoft:ClientSecret"];
         if (!string.IsNullOrEmpty(microsoftClientId) && microsoftClientId != "YOUR_MICROSOFT_CLIENT_ID")
         {
-            authBuilder.AddMicrosoftAccount(MicrosoftAccountDefaults.AuthenticationScheme, options =>
-            {
-                options.ClientId = microsoftClientId;
-                options.ClientSecret = microsoftClientSecret!;
-                options.CallbackPath = "/api/oauth2/callback/microsoft";
-                options.SaveTokens = true;
-            });
+            services.AddAuthentication()
+                .AddMicrosoftAccount(MicrosoftAccountDefaults.AuthenticationScheme, options =>
+                {
+                    options.ClientId = microsoftClientId;
+                    options.ClientSecret = microsoftClientSecret!;
+                    options.CallbackPath = "/signin-microsoft";
+                    options.SaveTokens = true;
+                    options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+                });
         }
 
         services.AddStackExchangeRedisCache(options =>

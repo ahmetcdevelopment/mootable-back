@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.MicrosoftAccount;
 using Microsoft.AspNetCore.Authorization;
@@ -54,19 +55,25 @@ public sealed class OAuth2Controller : BaseApiController
     }
 
     /// <summary>
-    /// OAuth2 callback endpoint
+    /// OAuth2 callback endpoint - called after OAuth middleware processes the response
     /// </summary>
     [HttpGet("callback/{provider}")]
     [AllowAnonymous]
     public async Task<IActionResult> Callback(string provider, string? returnUrl = null)
     {
-        var result = await HttpContext.AuthenticateAsync();
+        // Authenticate from Cookie scheme (where OAuth middleware stored the result)
+        var result = await HttpContext.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 
         if (!result.Succeeded)
         {
+            // Log the actual error for debugging
+            var errorMessage = result.Failure?.Message ?? "Unknown error";
+            Console.WriteLine($"OAuth2 callback failed for {provider}: {errorMessage}");
+            Console.WriteLine($"Full error: {result.Failure}");
+            
             // Redirect to frontend with error
             returnUrl = returnUrl ?? _configuration["Cors:AllowedOrigins"]?.Split(',').FirstOrDefault() ?? "http://localhost:3000";
-            return Redirect($"{returnUrl}/login?error=oauth_failed&provider={provider}");
+            return Redirect($"{returnUrl}/login?error=oauth_failed&provider={provider}&message={Uri.EscapeDataString(errorMessage)}");
         }
 
         // Extract user information from claims
@@ -90,10 +97,19 @@ public sealed class OAuth2Controller : BaseApiController
         // Get client IP
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
-        // Process external login
+        // Process external login - capitalize provider name
+        var normalizedProvider = provider.ToLower() switch
+        {
+            "google" => "Google",
+            "microsoft" => "Microsoft",
+            "github" => "GitHub",
+            "discord" => "Discord",
+            _ => provider
+        };
+
         var command = new ExternalLoginCommand
         {
-            Provider = provider,
+            Provider = normalizedProvider,
             ProviderKey = providerKey!,
             Email = email!,
             DisplayName = name,
@@ -106,8 +122,8 @@ public sealed class OAuth2Controller : BaseApiController
 
         var response = await Mediator.Send(command);
 
-        // Sign out from the external provider
-        await HttpContext.SignOutAsync();
+        // Sign out from the cookie scheme (clear OAuth session)
+        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 
         // Redirect to frontend with tokens
         returnUrl = returnUrl ?? _configuration["Cors:AllowedOrigins"]?.Split(',').FirstOrDefault() ?? "http://localhost:3000";

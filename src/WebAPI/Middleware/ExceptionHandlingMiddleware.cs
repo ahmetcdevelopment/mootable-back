@@ -74,11 +74,20 @@ public sealed class ExceptionHandlingMiddleware
                 new ErrorResponse(notFoundEx.Message)
             ),
             
+            Microsoft.EntityFrameworkCore.DbUpdateException dbEx => (
+                HttpStatusCode.InternalServerError,
+                new ErrorResponse(
+                    _environment.IsDevelopment() 
+                        ? $"Database error: {dbEx.InnerException?.Message ?? dbEx.Message}" 
+                        : "An error occurred while saving changes to the database."
+                )
+            ),
+            
             _ => (
                 HttpStatusCode.InternalServerError,
                 new ErrorResponse(
                     _environment.IsDevelopment() 
-                        ? exception.Message 
+                        ? $"{exception.Message} | Inner: {exception.InnerException?.Message}" 
                         : "An unexpected error occurred."
                 )
             )
@@ -86,7 +95,8 @@ public sealed class ExceptionHandlingMiddleware
 
         if (statusCode == HttpStatusCode.InternalServerError)
         {
-            _logger.LogError(exception, "Unhandled exception occurred: {Message}", exception.Message);
+            _logger.LogError(exception, "Unhandled exception occurred: {Message} | Inner: {InnerMessage}", 
+                exception.Message, exception.InnerException?.Message);
         }
         else
         {

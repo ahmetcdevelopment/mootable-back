@@ -24,6 +24,17 @@ public class PostsController : ControllerBase
     }
 
     /// <summary>
+    /// Get posts feed with cursor-based pagination for infinite scroll
+    /// Optimized for high-traffic, mobile-first experience
+    /// </summary>
+    [HttpGet("feed")]
+    public async Task<IActionResult> GetFeed([FromQuery] GetPostsFeedQuery query)
+    {
+        var result = await _mediator.Send(query);
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
     /// Get posts for Wonderland feed
     /// </summary>
     [HttpGet]
